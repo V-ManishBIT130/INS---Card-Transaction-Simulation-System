@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecurePay — Card Transaction Cryptography Simulator</title>
+    <meta name="description" content="Interactive simulation of secure payment card transactions using AES-256, RSA-2048, SHA-256, HMAC, digital signatures, and tokenization. An educational tool for Information & Network Security.">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app">
+
+    <!-- ==================== SIDEBAR ==================== -->
+    <aside id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">🔐</div>
+            <h1>SecurePay</h1>
+            <span class="subtitle">Cryptography Simulator</span>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a class="nav-item active" data-section="dashboard" onclick="App.navigate('dashboard')">
+                <span class="nav-icon">📊</span>
+                <span class="nav-text">Dashboard</span>
+            </a>
+            <a class="nav-item" data-section="card-input" onclick="App.navigate('card-input')">
+                <span class="nav-icon">💳</span>
+                <span class="nav-text">Card Input</span>
+            </a>
+            <a class="nav-item" data-section="key-generation" onclick="App.navigate('key-generation')">
+                <span class="nav-icon">🔑</span>
+                <span class="nav-text">Key Generation</span>
+            </a>
+
+            <div class="sidebar-divider"></div>
+
+            <a class="nav-item" data-section="pipeline" onclick="App.navigate('pipeline')">
+                <span class="nav-icon">⚡</span>
+                <span class="nav-text">Encryption Pipeline</span>
+            </a>
+            <a class="nav-item" data-section="network" onclick="App.navigate('network')">
+                <span class="nav-icon">📡</span>
+                <span class="nav-text">Network Transmission</span>
+            </a>
+            <a class="nav-item" data-section="verification" onclick="App.navigate('verification')">
+                <span class="nav-icon">✅</span>
+                <span class="nav-text">Verification</span>
+            </a>
+
+            <div class="sidebar-divider"></div>
+
+            <a class="nav-item" data-section="attacks" onclick="App.navigate('attacks')">
+                <span class="nav-icon">🛡️</span>
+                <span class="nav-text">Attack Simulator</span>
+            </a>
+            <a class="nav-item" data-section="audit-log" onclick="App.navigate('audit-log')">
+                <span class="nav-icon">📋</span>
+                <span class="nav-text">Audit Log</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="system-status">
+                <span class="status-dot"></span>
+                <span>Web Crypto API Active</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ==================== MAIN CONTENT ==================== -->
+    <main id="main-content">
+
+        <!-- ========== DASHBOARD ========== -->
+        <section id="dashboard" class="page active">
+            <div class="page-header">
+                <h1>🔐 Secure Payment Simulator</h1>
+                <p>Interactive demonstration of how cryptography secures every card transaction</p>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">🔒</div>
+                    <div class="stat-value" id="stat-tls">Ready</div>
+                    <div class="stat-label">TLS Status</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🔑</div>
+                    <div class="stat-value" id="stat-keys">0</div>
+                    <div class="stat-label">Keys Generated</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">💳</div>
+                    <div class="stat-value" id="stat-transactions">0</div>
+                    <div class="stat-label">Transactions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🛡️</div>
+                    <div class="stat-value" id="stat-attacks">0</div>
+                    <div class="stat-label">Attacks Blocked</div>
+                </div>
+            </div>
+
+            <!-- Transaction Flow Overview -->
+            <div class="glass-card">
+                <h3>📋 Transaction Flow Overview</h3>
+                <div class="flow-overview">
+                    <div class="flow-node">
+                        <span class="node-emoji">💳</span>
+                        <span class="node-label">Card Entry</span>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-node">
+                        <span class="node-emoji">🏷️</span>
+                        <span class="node-label">Tokenize</span>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-node">
+                        <span class="node-emoji">🔐</span>
+                        <span class="node-label">Encrypt</span>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-node">
+                        <span class="node-emoji">✍️</span>
+                        <span class="node-label">Sign</span>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-node">
+                        <span class="node-emoji">📡</span>
+                        <span class="node-label">Transmit</span>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-node">
+                        <span class="node-emoji">✅</span>
+                        <span class="node-label">Verify</span>
+                    </div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-node">
+                        <span class="node-emoji">💚</span>
+                        <span class="node-label">Approved</span>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <button class="btn btn-primary btn-lg" onclick="App.navigate('card-input')" style="max-width:400px">
+                        🚀 Start New Transaction
+                    </button>
+                </div>
+            </div>
+
+            <!-- Algorithms Overview -->
+            <div class="section-divider">Cryptographic Algorithms Used</div>
+
+            <div class="algorithms-grid">
+                <div class="algo-card">
+                    <div class="algo-icon">🔐</div>
+                    <h4>AES-256-CBC</h4>
+                    <p>Symmetric encryption for transaction payload. Uses a 256-bit key and CBC chaining mode with random IV.</p>
+                    <span class="algo-tag symmetric">Symmetric</span>
+                </div>
+                <div class="algo-card">
+                    <div class="algo-icon">🔑</div>
+                    <h4>RSA-2048</h4>
+                    <p>Asymmetric encryption for key exchange and digital signatures. 2048-bit key pair with OAEP and PSS padding.</p>
+                    <span class="algo-tag asymmetric">Asymmetric</span>
+                </div>
+                <div class="algo-card">
+                    <div class="algo-icon">#️⃣</div>
+                    <h4>SHA-256</h4>
+                    <p>Cryptographic hash function producing a 256-bit digest. Detects any tampering with transaction data.</p>
+                    <span class="algo-tag hash">Hash</span>
+                </div>
+                <div class="algo-card">
+                    <div class="algo-icon">🏷️</div>
+                    <h4>HMAC-SHA256</h4>
+                    <p>Hash-based Message Authentication Code. Verifies both data integrity and sender authenticity.</p>
+                    <span class="algo-tag mac">MAC</span>
+                </div>
+                <div class="algo-card">
+                    <div class="algo-icon">✍️</div>
+                    <h4>RSA-PSS Signatures</h4>
+                    <p>Digital signatures for non-repudiation. The merchant signs, the bank verifies — proving transaction origin.</p>
+                    <span class="algo-tag asymmetric">Asymmetric</span>
+                </div>
+                <div class="algo-card">
+                    <div class="algo-icon">🎫</div>
+                    <h4>Tokenization</h4>
+                    <p>Replaces real card numbers with non-reversible tokens. Protects PAN data at rest in merchant databases.</p>
+                    <span class="algo-tag hash">Token</span>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ========== CARD INPUT ========== -->
+        <section id="card-input" class="page">
+            <div class="page-header">
+                <h2>💳 Card Details & Validation</h2>
+                <p>Enter payment card information — real-time Luhn validation and card network detection</p>
+            </div>
+
+            <div class="card-input-layout">
+                <!-- Left: Card Visual + Luhn -->
+                <div class="card-visual-container">
+                    <div class="card-container">
+                        <div class="credit-card" id="credit-card" onclick="App.flipCard()">
+                            <div class="card-face card-front">
+                                <div class="card-top-row">
+                                    <div class="card-chip"></div>
+                                    <span class="card-contactless">))))</span>
+                                </div>
+                                <div class="card-number-display" id="card-display-number">•••• •••• •••• ••••</div>
+                                <div class="card-bottom-row">
+                                    <div>
+                                        <div class="card-label">CARD HOLDER</div>
+                                        <div class="card-holder-name" id="card-display-name">YOUR NAME</div>
+                                    </div>
+                                    <div style="text-align:right;">
+                                        <div class="card-label">EXPIRES</div>
+                                        <div class="card-expiry-display" id="card-display-expiry">MM/YY</div>
+                                    </div>
+                                </div>
+                                <div class="card-network-logo" id="card-display-network"></div>
+                            </div>
+                            <div class="card-face card-back">
+                                <div class="card-stripe"></div>
+                                <div class="card-cvv-strip">
+                                    <span class="card-cvv-label">CVV</span>
+                                    <span class="card-cvv-value" id="card-display-cvv">•••</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="card-click-hint">Click the card to flip it</p>
+
+                    <!-- Luhn Validation Breakdown -->
+                    <div class="glass-card luhn-panel" id="luhn-panel" style="display:none;">
+                        <h3>🧮 Luhn Algorithm Breakdown</h3>
+                        <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:12px;">
+                            The Luhn checksum validates card number structure. Starting from the rightmost digit, every second digit is doubled. If the result exceeds 9, subtract 9. The sum of all digits must be divisible by 10.
+                        </p>
+                        <div class="luhn-digits" id="luhn-digits"></div>
+                        <div id="luhn-result"></div>
+                    </div>
+                </div>
+
+                <!-- Right: Input Form -->
+                <div class="card-form-container">
+                    <div class="glass-card">
+                        <div class="form-group">
+                            <label for="input-card-number">Card Number</label>
+                            <input type="text" id="input-card-number" placeholder="4532 0151 1283 0366" maxlength="19" autocomplete="off">
+                            <div id="card-network-badge" style="margin-top:8px;"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="input-card-name">Cardholder Name</label>
+                            <input type="text" id="input-card-name" placeholder="RIYA SHARMA" autocomplete="off">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="input-expiry">Expiry Date</label>
+                                <input type="text" id="input-expiry" placeholder="12/28" maxlength="5" autocomplete="off">
+                            </div>
+                            <div class="form-group">
+                                <label for="input-cvv">CVV</label>
+                                <input type="text" id="input-cvv" placeholder="123" maxlength="4" autocomplete="off">
+                            </div>
+                        </div>
+
+                        <hr class="form-separator">
+
+                        <div class="form-group">
+                            <label for="input-amount">Transaction Amount (₹)</label>
+                            <input type="number" id="input-amount" placeholder="350" min="1" step="1">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="input-merchant">Merchant Name</label>
+                            <input type="text" id="input-merchant" placeholder="Café Mocha" autocomplete="off">
+                        </div>
+
+                        <button class="btn btn-primary btn-lg" id="btn-process" disabled onclick="App.startTransaction()">
+                            🔒 Process Secure Transaction
+                        </button>
+
+                        <div class="text-center mt-16">
+                            <button class="btn btn-ghost" onclick="App.loadSampleData()">
+                                📋 Load Sample Data
+                            </button>
+                        </div>
+
+                        <div class="info-box mt-16">
+                            <strong>💡 Note:</strong> This is a simulation. No real payment is processed. Card data never leaves your browser — all cryptographic operations run locally using the Web Crypto API.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ========== KEY GENERATION ========== -->
+        <section id="key-generation" class="page">
+            <div class="page-header">
+                <h2>🔑 Cryptographic Key Generation</h2>
+                <p>Generate all keys required for the secure transaction pipeline</p>
+            </div>
+
+            <div class="info-box mb-24">
+                <strong>Why multiple keys?</strong> Payment systems use <strong>hybrid encryption</strong> — fast AES for data, RSA for secure key exchange, and HMAC for authentication. Each key has a specific role in the security chain.
+            </div>
+
+            <button class="btn btn-primary" id="btn-generate-keys" onclick="App.generateAllKeys()" style="margin-bottom:24px;">
+                ⚡ Generate All Keys
+            </button>
+
+            <div class="keys-grid" id="keys-grid">
+                <!-- Merchant Signing Keys (RSA-PSS) -->
+                <div class="key-card" id="key-card-signing">
+                    <div class="key-header">
+                        <div class="key-type">✍️ Merchant Signing Keys</div>
+                        <span class="key-algo">RSA-PSS 2048</span>
+                    </div>
+                    <p class="key-purpose">Signs transactions to prove merchant identity (non-repudiation)</p>
+                    <div class="key-value" id="key-signing-public">Not generated yet...</div>
+                    <div style="margin-top:8px;font-size:0.68rem;color:var(--text-muted);">PUBLIC KEY (shared with gateway)</div>
+                </div>
+
+                <!-- Gateway Encryption Keys (RSA-OAEP) -->
+                <div class="key-card" id="key-card-encryption">
+                    <div class="key-header">
+                        <div class="key-type">🔐 Gateway Encryption Keys</div>
+                        <span class="key-algo">RSA-OAEP 2048</span>
+                    </div>
+                    <p class="key-purpose">Encrypts AES session keys — only the gateway can decrypt</p>
+                    <div class="key-value" id="key-encryption-public">Not generated yet...</div>
+                    <div style="margin-top:8px;font-size:0.68rem;color:var(--text-muted);">PUBLIC KEY (shared with merchants)</div>
+                </div>
+
+                <!-- AES Session Key -->
+                <div class="key-card" id="key-card-aes">
+                    <div class="key-header">
+                        <div class="key-type">🔑 Session Key</div>
+                        <span class="key-algo">AES-256-CBC</span>
+                    </div>
+                    <p class="key-purpose">Encrypts the transaction payload — unique per transaction</p>
+                    <div class="key-value" id="key-aes-value">Not generated yet...</div>
+                    <div style="margin-top:8px;font-size:0.68rem;color:var(--text-muted);">256-BIT SYMMETRIC KEY (one-time use)</div>
+                </div>
+
+                <!-- HMAC Key -->
+                <div class="key-card" id="key-card-hmac">
+                    <div class="key-header">
+                        <div class="key-type">🏷️ HMAC Key</div>
+                        <span class="key-algo">HMAC-SHA256</span>
+                    </div>
+                    <p class="key-purpose">Shared secret for message authentication between merchant & gateway</p>
+                    <div class="key-value" id="key-hmac-value">Not generated yet...</div>
+                    <div style="margin-top:8px;font-size:0.68rem;color:var(--text-muted);">SHARED SECRET KEY (pre-established)</div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ========== ENCRYPTION PIPELINE ========== -->
+        <section id="pipeline" class="page">
+            <div class="page-header">
+                <h2>⚡ Encryption Pipeline</h2>
+                <p>Watch each cryptographic operation execute step-by-step with real data</p>
+            </div>
+
+            <div class="pipeline-container">
+                <div id="pipeline-status" class="info-box mb-24">
+                    Process a transaction from the <strong>Card Input</strong> page to see the encryption pipeline in action.
+                </div>
+
+                <!-- Phase: Merchant Side -->
+                <div class="phase-label" id="phase-merchant" style="display:none;">
+                    🏪 Merchant Side — Preparing Secure Transaction
+                </div>
+                <div class="pipeline-steps" id="pipeline-steps-merchant"></div>
+
+                <!-- Phase: Transmission -->
+                <div class="phase-label" id="phase-transmission" style="display:none;">
+                    📡 Secure Transmission — Data In Transit
+                </div>
+                <div id="pipeline-transmission"></div>
+
+                <!-- Phase: Gateway/Bank Side -->
+                <div class="phase-label" id="phase-gateway" style="display:none;">
+                    🏦 Gateway / Bank Side — Verification & Decryption
+                </div>
+                <div class="pipeline-steps" id="pipeline-steps-gateway"></div>
+
+                <!-- Transaction Result -->
+                <div id="transaction-result-container"></div>
+            </div>
+        </section>
+
+
+        <!-- ========== NETWORK TRANSMISSION ========== -->
+        <section id="network" class="page">
+            <div class="page-header">
+                <h2>📡 Network Transmission Simulation</h2>
+                <p>Visualize encrypted data traveling across the payment network</p>
+            </div>
+
+            <div class="glass-card">
+                <h3>🌐 Payment Network Topology</h3>
+                <div class="network-viz">
+                    <div class="network-nodes" id="network-nodes">
+                        <div class="network-node" id="node-merchant">
+                            <div class="node-icon">🏪</div>
+                            <span class="node-label">Merchant POS</span>
+                        </div>
+                        <div class="network-node" id="node-gateway">
+                            <div class="node-icon">🌐</div>
+                            <span class="node-label">Payment Gateway</span>
+                        </div>
+                        <div class="network-node" id="node-network">
+                            <div class="node-icon">🔗</div>
+                            <span class="node-label">Card Network</span>
+                        </div>
+                        <div class="network-node" id="node-bank">
+                            <div class="node-icon">🏦</div>
+                            <span class="node-label">Issuing Bank</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="network-status" class="info-box">
+                    Process a transaction to see encrypted data packets travel across the network.
+                </div>
+            </div>
+
+            <!-- What an attacker sees -->
+            <div class="glass-card mt-24" id="intercepted-panel" style="display:none;">
+                <h3>🕵️ What an Attacker Sees (Intercepted Data)</h3>
+                <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:16px;">
+                    If an attacker intercepts the data in transit, this is all they can see — encrypted gibberish. Without the private keys, the data is completely useless.
+                </p>
+                <div class="intercepted-data">
+                    <pre id="intercepted-data-display"></pre>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ========== VERIFICATION ========== -->
+        <section id="verification" class="page">
+            <div class="page-header">
+                <h2>✅ Verification & Decryption</h2>
+                <p>The gateway and bank verify the transaction's authenticity and integrity before processing</p>
+            </div>
+
+            <div id="verification-status" class="info-box mb-24">
+                Process a transaction to see the verification steps performed by the gateway and bank.
+            </div>
+
+            <div class="verification-steps" id="verification-steps"></div>
+
+            <!-- Decrypted Result -->
+            <div id="decrypted-result" style="display:none;" class="glass-card mt-24">
+                <h3>🔓 Decrypted Transaction Payload</h3>
+                <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:16px;">
+                    After all verifications pass, the gateway decrypts the transaction and forwards it to the bank for authorization.
+                </p>
+                <div class="bundle-display">
+                    <pre id="decrypted-payload" style="color:var(--accent-green);"></pre>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ========== ATTACK SIMULATOR ========== -->
+        <section id="attacks" class="page">
+            <div class="page-header">
+                <h2>🛡️ Attack Simulator</h2>
+                <p>Test what happens when an attacker tries to compromise the transaction</p>
+            </div>
+
+            <div id="attack-prereq" class="warning-box mb-24">
+                ⚠️ <strong>Complete a transaction first</strong> to enable the attack simulator. The simulator uses real transaction data to demonstrate attack scenarios.
+            </div>
+
+            <div class="attack-buttons" id="attack-buttons">
+                <button class="attack-btn" onclick="App.simulateAttack('tamper')" disabled id="atk-tamper">
+                    <span class="attack-icon">🔨</span>
+                    <span>Tamper Data</span>
+                    <span style="font-size:0.68rem;color:var(--text-muted);">Modify ciphertext</span>
+                </button>
+                <button class="attack-btn" onclick="App.simulateAttack('replay')" disabled id="atk-replay">
+                    <span class="attack-icon">🔄</span>
+                    <span>Replay Attack</span>
+                    <span style="font-size:0.68rem;color:var(--text-muted);">Resend transaction</span>
+                </button>
+                <button class="attack-btn" onclick="App.simulateAttack('wrongkey')" disabled id="atk-wrongkey">
+                    <span class="attack-icon">🔑</span>
+                    <span>Wrong Key</span>
+                    <span style="font-size:0.68rem;color:var(--text-muted);">Decrypt with wrong key</span>
+                </button>
+                <button class="attack-btn" onclick="App.simulateAttack('nosig')" disabled id="atk-nosig">
+                    <span class="attack-icon">✂️</span>
+                    <span>Remove Signature</span>
+                    <span style="font-size:0.68rem;color:var(--text-muted);">Strip digital signature</span>
+                </button>
+                <button class="attack-btn" onclick="App.simulateAttack('intercept')" disabled id="atk-intercept">
+                    <span class="attack-icon">👁️</span>
+                    <span>Intercept</span>
+                    <span style="font-size:0.68rem;color:var(--text-muted);">Eavesdrop on data</span>
+                </button>
+            </div>
+
+            <div id="attack-result-container"></div>
+        </section>
+
+
+        <!-- ========== AUDIT LOG ========== -->
+        <section id="audit-log" class="page">
+            <div class="page-header">
+                <h2>📋 Transaction Audit Log</h2>
+                <p>Complete timestamped record of all cryptographic operations</p>
+            </div>
+
+            <div class="log-controls">
+                <button class="btn btn-ghost btn-sm" onclick="App.clearLog()">🗑️ Clear Log</button>
+                <button class="btn btn-ghost btn-sm" onclick="App.exportLog()">📥 Export Log</button>
+                <span style="flex:1;"></span>
+                <span style="font-size:0.78rem;color:var(--text-muted);" id="log-count">0 entries</span>
+            </div>
+
+            <div class="log-container" id="log-container">
+                <div class="log-empty" id="log-empty">
+                    <p>📭 No log entries yet.</p>
+                    <p style="font-size:0.78rem;margin-top:8px;">Process a transaction to see detailed cryptographic operation logs.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- Crypto Modules -->
+<script src="js/crypto/luhn.js"></script>
+<script src="js/crypto/tokenizer.js"></script>
+<script src="js/crypto/hash.js"></script>
+<script src="js/crypto/aes.js"></script>
+<script src="js/crypto/rsa.js"></script>
+<script src="js/crypto/hmac.js"></script>
+
+<!-- Application -->
+<script src="js/app.js"></script>
+
+</body>
+</html>
