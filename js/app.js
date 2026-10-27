@@ -376,8 +376,88 @@
     }
 
     // ============================================================
-    // TRANSACTION PROCESSING
+    // TRANSACTION PROCESSING (PRESENTATION MODE)
     // ============================================================
+
+    // Real-life analogies for each step
+    const STEP_ANALOGIES = {
+        1: {
+            icon: '🏷️',
+            title: 'Real-Life Analogy',
+            text: 'Imagine checking into a hotel. Instead of keeping your passport at the front desk (risky!), they give you a room key card. The card works for your room, but if someone steals it, they can\'t use it to steal your identity. Tokenization does the same — replaces your real card number with a useless stand-in.'
+        },
+        2: {
+            icon: '📦',
+            title: 'Real-Life Analogy',
+            text: 'Think of putting your letter into a locked safe that only the recipient has the key to. Even if someone intercepts the safe during delivery, they can\'t open it without the key. AES encryption locks your transaction data in a digital safe that would take billions of years to crack.'
+        },
+        3: {
+            icon: '📬',
+            title: 'Real-Life Analogy',
+            text: 'You locked your letter in a safe (AES), but now you need to send the safe\'s key to the recipient securely. It\'s like putting the safe key inside a special mailbox that only the bank can open — you drop it in through a public slot (RSA public key), but only the bank has the master key (RSA private key) to open the mailbox.'
+        },
+        4: {
+            icon: '🔏',
+            title: 'Real-Life Analogy',
+            text: 'It\'s like a wax seal on an old letter. Before sending, you press your unique seal into hot wax on the envelope. When it arrives, the recipient checks if the seal is intact and matches your known seal pattern. If the wax is broken or looks different, someone tampered with the letter. SHA-256 is the digital version of that wax seal.'
+        },
+        5: {
+            icon: '✍️',
+            title: 'Real-Life Analogy',
+            text: 'Imagine signing a cheque. Only YOU can produce your signature (private key), but the bank can verify it matches your signature on file (public key). A digital signature works the same way — the merchant "signs" the transaction, and the bank verifies it\'s really from that merchant and not a forger.'
+        },
+        6: {
+            icon: '🤝',
+            title: 'Real-Life Analogy',
+            text: 'Think of a secret handshake between you and your friend. When a message arrives, you do the handshake — if it matches, you know it\'s from your friend AND the message wasn\'t changed. HMAC is like a secret handshake combined with the message itself, verifying both who sent it and that nothing was altered.'
+        },
+        7: {
+            icon: '📡',
+            title: 'Real-Life Analogy',
+            text: 'Picture an armored truck transporting cash between banks. The money (your encrypted data) is locked inside (AES + RSA), has a tamper-evident seal (HMAC), a verified manifest from the sender (digital signature), and a tracking number (nonce). Even if someone stops the truck, they can\'t access, modify, or reuse any of it.'
+        },
+        8: {
+            icon: '🤝',
+            title: 'Real-Life Analogy',
+            text: 'When the armored truck arrives at the bank, the first thing they check is the tamper-evident seal. If it\'s broken or doesn\'t match, they reject the delivery immediately — no need to even open the truck. HMAC verification is this quick, instant integrity check.'
+        },
+        9: {
+            icon: '📝',
+            title: 'Real-Life Analogy',
+            text: 'After checking the seal, the bank verifies the sender\'s ID badge and signed manifest. "Is this really from the authorized merchant? Can we prove they sent it?" If the signature doesn\'t match the merchant on file, the transaction is rejected. This prevents fraud and provides legal non-repudiation.'
+        },
+        10: {
+            icon: '🔓',
+            title: 'Real-Life Analogy',
+            text: 'The bank opens their special mailbox (RSA private key) and retrieves the safe key (AES key) that was dropped in. Only the bank can do this — nobody else has the master key. This is the magic of asymmetric cryptography: anyone can lock, but only the intended recipient can unlock.'
+        },
+        11: {
+            icon: '📖',
+            title: 'Real-Life Analogy',
+            text: 'With the safe key recovered, the bank can now open the locked safe and read the original letter. The transaction details — card token, amount, merchant — are finally visible to the authorized party. This is the moment everything comes together.'
+        },
+        12: {
+            icon: '✅',
+            title: 'Real-Life Analogy',
+            text: 'As a final check, the bank re-reads the letter and creates their own wax seal impression. If their seal matches the one that was sent, they know the letter wasn\'t altered at any point in the journey. This last verification closes the loop and confirms end-to-end integrity.'
+        },
+        13: {
+            icon: '🎉',
+            title: 'Real-Life Analogy',
+            text: 'After all security checks pass — seal intact, signature verified, contents decrypted and validated — the bank approves the transaction. It\'s like a border checkpoint: every document was checked, every seal verified, every identity confirmed. The payment goes through with full confidence.'
+        }
+    };
+
+    // Presentation state
+    const presentation = {
+        active: false,
+        currentSlide: 0,
+        totalSlides: 0,
+        steps: [],            // Array of step configs (built during processTransaction)
+        executed: new Set(),   // Which steps have been executed
+        results: {},           // step index -> result data
+        resolve: null          // Promise resolver for step completion
+    };
 
     async function startTransaction() {
         // Generate keys if not already done
@@ -413,368 +493,943 @@
         addLog('═══════════ NEW TRANSACTION STARTED ═══════════', 'info');
         addLog(`Nonce: ${state.nonce} | Timestamp: ${state.timestamp}`, 'info');
 
-        try {
-            // -------- STEP 1: TOKENIZATION --------
-            await runPipelineStep(merchantContainer, {
-                number: 1,
-                icon: '🏷️',
-                title: 'Tokenization',
-                description: 'Replace real card number (PAN) with a non-reversible token to protect card data at rest.',
-                explanation: '<strong>Why?</strong> If a merchant\'s database is breached, attackers only get useless tokens — not real card numbers. Tokenization is required by PCI DSS compliance.',
-                inputLabel: 'Original PAN',
-                inputValue: CryptoSim.Luhn.formatNumber(state.cardNumber),
-                inputClass: 'plaintext',
-                execute: async () => {
-                    state.tokenResult = await CryptoSim.Tokenizer.tokenize(state.cardNumber);
-                    return {
-                        outputLabel: 'Token',
-                        outputValue: state.tokenResult.token,
-                        outputClass: 'hash',
-                        logData: {
-                            token: state.tokenResult.token,
-                            masked: state.tokenResult.masked
-                        }
-                    };
-                }
-            });
+        // Build ALL step definitions first
+        presentation.steps = [];
+        presentation.executed = new Set();
+        presentation.results = {};
+        presentation.currentSlide = 0;
 
-            // Build transaction payload
-            state.transactionPayload = JSON.stringify({
-                card_token: state.tokenResult.token,
-                card_masked: state.tokenResult.masked,
-                card_network: state.cardNetwork,
-                cardholder: state.cardName,
-                amount: state.amount,
-                currency: 'INR',
-                merchant: state.merchantName,
-                timestamp: state.timestamp,
-                nonce: state.nonce
-            }, null, 2);
+        // STEP 1: Tokenization
+        presentation.steps.push({
+            number: 1,
+            icon: '🏷️',
+            title: 'Tokenization',
+            phase: '🏪 Merchant Side',
+            description: 'Replace real card number (PAN) with a non-reversible token to protect card data at rest.',
+            explanation: '<strong>Why?</strong> If a merchant\'s database is breached, attackers only get useless tokens — not real card numbers. Tokenization is required by PCI DSS compliance.',
+            inputLabel: 'Original PAN',
+            inputValue: CryptoSim.Luhn.formatNumber(state.cardNumber),
+            inputClass: 'plaintext',
+            container: merchantContainer,
+            execute: async () => {
+                state.tokenResult = await CryptoSim.Tokenizer.tokenize(state.cardNumber);
 
-            // -------- STEP 2: AES ENCRYPTION --------
-            await runPipelineStep(merchantContainer, {
-                number: 2,
-                icon: '🔐',
-                title: 'AES-256-CBC Encryption',
-                description: 'Encrypt the entire transaction payload with the symmetric AES session key. A random IV ensures identical data produces different ciphertext each time.',
-                explanation: '<strong>Why AES?</strong> Symmetric encryption is fast and efficient for large data. The 256-bit key provides 2²⁵⁶ possible keys — brute force would take billions of years.',
-                inputLabel: 'Transaction Payload (JSON)',
-                inputValue: state.transactionPayload,
-                inputClass: 'plaintext',
-                execute: async () => {
-                    state.aesEncrypted = await CryptoSim.AES.encrypt(state.aesKeyData.key, state.transactionPayload);
-                    return {
-                        outputLabel: `Ciphertext (${state.aesEncrypted.cipherLength} bytes) + IV`,
-                        outputValue: `Ciphertext: ${state.aesEncrypted.cipherHex.slice(0, 80)}...\nIV: ${state.aesEncrypted.ivHex}`,
-                        outputClass: 'encrypted',
-                        logData: {
-                            algorithm: 'AES-256-CBC',
-                            ivHex: state.aesEncrypted.ivHex,
-                            cipherLength: state.aesEncrypted.cipherLength,
-                            cipherPreview: state.aesEncrypted.cipherHex.slice(0, 64)
-                        }
-                    };
-                }
-            });
+                // Build transaction payload after tokenization
+                state.transactionPayload = JSON.stringify({
+                    card_token: state.tokenResult.token,
+                    card_masked: state.tokenResult.masked,
+                    card_network: state.cardNetwork,
+                    cardholder: state.cardName,
+                    amount: state.amount,
+                    currency: 'INR',
+                    merchant: state.merchantName,
+                    timestamp: state.timestamp,
+                    nonce: state.nonce
+                }, null, 2);
 
-            // -------- STEP 3: RSA KEY WRAPPING --------
-            await runPipelineStep(merchantContainer, {
-                number: 3,
-                icon: '🔑',
-                title: 'RSA-OAEP Key Wrapping',
-                description: 'Encrypt the AES session key with the gateway\'s RSA public key. Only the gateway (with the private key) can recover the AES key.',
-                explanation: '<strong>Why wrap the key?</strong> This is "hybrid encryption" — AES is fast for data, RSA securely delivers the AES key. The merchant can\'t send the AES key in plaintext, so RSA protects it.',
-                inputLabel: 'AES-256 Session Key',
-                inputValue: state.aesKeyData.keyHex,
-                inputClass: 'plaintext',
-                execute: async () => {
-                    state.rsaWrappedKey = await CryptoSim.RSA.wrapKey(
-                        state.aesKeyData.key,
-                        state.encryptionKeyPair.publicKey
-                    );
-                    return {
-                        outputLabel: `RSA-Wrapped Key (${state.rsaWrappedKey.wrappedLength} bytes)`,
-                        outputValue: state.rsaWrappedKey.wrappedHex.slice(0, 100) + '...',
-                        outputClass: 'encrypted',
-                        logData: {
-                            algorithm: 'RSA-OAEP',
-                            wrappedLength: state.rsaWrappedKey.wrappedLength,
-                            wrappedPreview: state.rsaWrappedKey.wrappedHex.slice(0, 64)
-                        }
-                    };
-                }
-            });
+                return {
+                    outputLabel: 'Token',
+                    outputValue: state.tokenResult.token,
+                    outputClass: 'hash',
+                    logData: {
+                        token: state.tokenResult.token,
+                        masked: state.tokenResult.masked
+                    }
+                };
+            }
+        });
 
-            // -------- STEP 4: SHA-256 HASH --------
-            await runPipelineStep(merchantContainer, {
-                number: 4,
-                icon: '#️⃣',
-                title: 'SHA-256 Hash',
-                description: 'Create a cryptographic fingerprint (digest) of the original transaction payload. Any modification to the data will produce a completely different hash.',
-                explanation: '<strong>Why hash?</strong> The hash is the "fingerprint" of the data. At the receiving end, the gateway recomputes the hash and compares — if they match, the data is untampered.',
-                inputLabel: 'Transaction Payload',
-                inputValue: state.transactionPayload.slice(0, 100) + '...',
-                inputClass: 'plaintext',
-                execute: async () => {
-                    state.transactionHash = await CryptoSim.Hash.sha256(state.transactionPayload);
-                    return {
-                        outputLabel: 'SHA-256 Digest (256 bits)',
-                        outputValue: state.transactionHash,
-                        outputClass: 'hash',
-                        logData: {
-                            algorithm: 'SHA-256',
-                            hash: state.transactionHash,
-                            inputLength: state.transactionPayload.length
-                        }
-                    };
-                }
-            });
+        // STEP 2: AES Encryption
+        presentation.steps.push({
+            number: 2,
+            icon: '🔐',
+            title: 'AES-256-CBC Encryption',
+            phase: '🏪 Merchant Side',
+            description: 'Encrypt the entire transaction payload with the symmetric AES session key. A random IV ensures identical data produces different ciphertext each time.',
+            explanation: '<strong>Why AES?</strong> Symmetric encryption is fast and efficient for large data. The 256-bit key provides 2²⁵⁶ possible keys — brute force would take billions of years.',
+            inputLabel: 'Transaction Payload (JSON)',
+            inputValueFn: () => state.transactionPayload,
+            inputClass: 'plaintext',
+            container: merchantContainer,
+            execute: async () => {
+                state.aesEncrypted = await CryptoSim.AES.encrypt(state.aesKeyData.key, state.transactionPayload);
+                return {
+                    outputLabel: `Ciphertext (${state.aesEncrypted.cipherLength} bytes) + IV`,
+                    outputValue: `Ciphertext: ${state.aesEncrypted.cipherHex.slice(0, 80)}...\nIV: ${state.aesEncrypted.ivHex}`,
+                    outputClass: 'encrypted',
+                    logData: {
+                        algorithm: 'AES-256-CBC',
+                        ivHex: state.aesEncrypted.ivHex,
+                        cipherLength: state.aesEncrypted.cipherLength,
+                        cipherPreview: state.aesEncrypted.cipherHex.slice(0, 64)
+                    }
+                };
+            }
+        });
 
-            // -------- STEP 5: DIGITAL SIGNATURE --------
-            await runPipelineStep(merchantContainer, {
-                number: 5,
-                icon: '✍️',
-                title: 'RSA-PSS Digital Signature',
-                description: 'The merchant signs the transaction hash with their private key. This proves the transaction originated from this specific merchant and provides non-repudiation.',
-                explanation: '<strong>Why sign?</strong> Anyone can compute a hash, but only the holder of the merchant\'s private key can create a valid signature. The gateway verifies using the merchant\'s public key.',
-                inputLabel: 'SHA-256 Hash (to be signed)',
-                inputValue: state.transactionHash,
-                inputClass: 'hash',
-                execute: async () => {
-                    state.digitalSignature = await CryptoSim.RSA.sign(
-                        state.signingKeyPair.privateKey,
-                        state.transactionHash
-                    );
-                    return {
-                        outputLabel: `Digital Signature (${state.digitalSignature.signatureLength} bytes)`,
-                        outputValue: state.digitalSignature.signatureHex.slice(0, 100) + '...',
-                        outputClass: 'signature',
-                        logData: {
-                            algorithm: 'RSA-PSS',
-                            saltLength: 32,
-                            signatureLength: state.digitalSignature.signatureLength,
-                            signaturePreview: state.digitalSignature.signatureHex.slice(0, 64)
-                        }
-                    };
-                }
-            });
+        // STEP 3: RSA Key Wrapping
+        presentation.steps.push({
+            number: 3,
+            icon: '🔑',
+            title: 'RSA-OAEP Key Wrapping',
+            phase: '🏪 Merchant Side',
+            description: 'Encrypt the AES session key with the gateway\'s RSA public key. Only the gateway (with the private key) can recover the AES key.',
+            explanation: '<strong>Why wrap the key?</strong> This is "hybrid encryption" — AES is fast for data, RSA securely delivers the AES key. The merchant can\'t send the AES key in plaintext, so RSA protects it.',
+            inputLabel: 'AES-256 Session Key',
+            inputValueFn: () => state.aesKeyData.keyHex,
+            inputClass: 'plaintext',
+            container: merchantContainer,
+            execute: async () => {
+                state.rsaWrappedKey = await CryptoSim.RSA.wrapKey(
+                    state.aesKeyData.key,
+                    state.encryptionKeyPair.publicKey
+                );
+                return {
+                    outputLabel: `RSA-Wrapped Key (${state.rsaWrappedKey.wrappedLength} bytes)`,
+                    outputValue: state.rsaWrappedKey.wrappedHex.slice(0, 100) + '...',
+                    outputClass: 'encrypted',
+                    logData: {
+                        algorithm: 'RSA-OAEP',
+                        wrappedLength: state.rsaWrappedKey.wrappedLength,
+                        wrappedPreview: state.rsaWrappedKey.wrappedHex.slice(0, 64)
+                    }
+                };
+            }
+        });
 
-            // -------- STEP 6: HMAC --------
-            const bundleForHmac = JSON.stringify({
-                ciphertext: state.aesEncrypted.cipherBase64,
-                wrappedKey: state.rsaWrappedKey.wrappedBase64,
-                signature: state.digitalSignature.signatureBase64,
-                hash: state.transactionHash,
-                nonce: state.nonce,
-                timestamp: state.timestamp
-            });
+        // STEP 4: SHA-256 Hash
+        presentation.steps.push({
+            number: 4,
+            icon: '#️⃣',
+            title: 'SHA-256 Hash',
+            phase: '🏪 Merchant Side',
+            description: 'Create a cryptographic fingerprint (digest) of the original transaction payload. Any modification to the data will produce a completely different hash.',
+            explanation: '<strong>Why hash?</strong> The hash is the "fingerprint" of the data. At the receiving end, the gateway recomputes the hash and compares — if they match, the data is untampered.',
+            inputLabel: 'Transaction Payload',
+            inputValueFn: () => state.transactionPayload.slice(0, 100) + '...',
+            inputClass: 'plaintext',
+            container: merchantContainer,
+            execute: async () => {
+                state.transactionHash = await CryptoSim.Hash.sha256(state.transactionPayload);
+                return {
+                    outputLabel: 'SHA-256 Digest (256 bits)',
+                    outputValue: state.transactionHash,
+                    outputClass: 'hash',
+                    logData: {
+                        algorithm: 'SHA-256',
+                        hash: state.transactionHash,
+                        inputLength: state.transactionPayload.length
+                    }
+                };
+            }
+        });
 
-            await runPipelineStep(merchantContainer, {
-                number: 6,
-                icon: '🏷️',
-                title: 'HMAC-SHA256 Authentication',
-                description: 'Generate a Message Authentication Code (MAC) over the entire transaction bundle using the shared HMAC key. This verifies both integrity AND authenticity.',
-                explanation: '<strong>Why HMAC on top of hashing and signing?</strong> HMAC provides a fast, symmetric authentication check that the gateway can verify instantly. It\'s the first line of defense before the slower RSA signature verification.',
-                inputLabel: 'Transaction Bundle (to authenticate)',
-                inputValue: bundleForHmac.slice(0, 100) + '...',
-                inputClass: 'plaintext',
-                execute: async () => {
-                    state.hmacResult = await CryptoSim.HMAC.sign(state.hmacKeyData.key, bundleForHmac);
-                    return {
-                        outputLabel: 'HMAC-SHA256 (256 bits)',
-                        outputValue: state.hmacResult.macHex,
-                        outputClass: 'hash',
-                        logData: {
-                            algorithm: 'HMAC-SHA256',
-                            mac: state.hmacResult.macHex
-                        }
-                    };
-                }
-            });
+        // STEP 5: Digital Signature
+        presentation.steps.push({
+            number: 5,
+            icon: '✍️',
+            title: 'RSA-PSS Digital Signature',
+            phase: '🏪 Merchant Side',
+            description: 'The merchant signs the transaction hash with their private key. This proves the transaction originated from this specific merchant and provides non-repudiation.',
+            explanation: '<strong>Why sign?</strong> Anyone can compute a hash, but only the holder of the merchant\'s private key can create a valid signature. The gateway verifies using the merchant\'s public key.',
+            inputLabel: 'SHA-256 Hash (to be signed)',
+            inputValueFn: () => state.transactionHash,
+            inputClass: 'hash',
+            container: merchantContainer,
+            execute: async () => {
+                state.digitalSignature = await CryptoSim.RSA.sign(
+                    state.signingKeyPair.privateKey,
+                    state.transactionHash
+                );
+                return {
+                    outputLabel: `Digital Signature (${state.digitalSignature.signatureLength} bytes)`,
+                    outputValue: state.digitalSignature.signatureHex.slice(0, 100) + '...',
+                    outputClass: 'signature',
+                    logData: {
+                        algorithm: 'RSA-PSS',
+                        saltLength: 32,
+                        signatureLength: state.digitalSignature.signatureLength,
+                        signaturePreview: state.digitalSignature.signatureHex.slice(0, 64)
+                    }
+                };
+            }
+        });
 
-            // Build the final transaction bundle
-            state.transactionBundle = {
-                ciphertext: state.aesEncrypted.cipherBase64,
-                iv: state.aesEncrypted.ivHex,
-                wrappedKey: state.rsaWrappedKey.wrappedBase64,
-                signature: state.digitalSignature.signatureBase64,
-                hash: state.transactionHash,
-                hmac: state.hmacResult.macHex,
-                nonce: state.nonce,
-                timestamp: state.timestamp,
-                merchantId: 'MERCHANT_' + state.merchantName.replace(/\s/g, '_').toUpperCase()
-            };
+        // STEP 6: HMAC
+        presentation.steps.push({
+            number: 6,
+            icon: '🏷️',
+            title: 'HMAC-SHA256 Authentication',
+            phase: '🏪 Merchant Side',
+            description: 'Generate a Message Authentication Code (MAC) over the entire transaction bundle using the shared HMAC key. This verifies both integrity AND authenticity.',
+            explanation: '<strong>Why HMAC on top of hashing and signing?</strong> HMAC provides a fast, symmetric authentication check that the gateway can verify instantly. It\'s the first line of defense before the slower RSA signature verification.',
+            inputLabel: 'Transaction Bundle (to authenticate)',
+            inputValueFn: () => {
+                const bundleForHmac = JSON.stringify({
+                    ciphertext: state.aesEncrypted.cipherBase64,
+                    wrappedKey: state.rsaWrappedKey.wrappedBase64,
+                    signature: state.digitalSignature.signatureBase64,
+                    hash: state.transactionHash,
+                    nonce: state.nonce,
+                    timestamp: state.timestamp
+                });
+                return bundleForHmac.slice(0, 100) + '...';
+            },
+            inputClass: 'plaintext',
+            container: merchantContainer,
+            execute: async () => {
+                const bundleForHmac = JSON.stringify({
+                    ciphertext: state.aesEncrypted.cipherBase64,
+                    wrappedKey: state.rsaWrappedKey.wrappedBase64,
+                    signature: state.digitalSignature.signatureBase64,
+                    hash: state.transactionHash,
+                    nonce: state.nonce,
+                    timestamp: state.timestamp
+                });
+                state.hmacResult = await CryptoSim.HMAC.sign(state.hmacKeyData.key, bundleForHmac);
 
-            addLog('📦 Transaction bundle assembled', 'info', state.transactionBundle);
+                // Build the final transaction bundle
+                state.transactionBundle = {
+                    ciphertext: state.aesEncrypted.cipherBase64,
+                    iv: state.aesEncrypted.ivHex,
+                    wrappedKey: state.rsaWrappedKey.wrappedBase64,
+                    signature: state.digitalSignature.signatureBase64,
+                    hash: state.transactionHash,
+                    hmac: state.hmacResult.macHex,
+                    nonce: state.nonce,
+                    timestamp: state.timestamp,
+                    merchantId: 'MERCHANT_' + state.merchantName.replace(/\s/g, '_').toUpperCase()
+                };
 
-            // Mark nonce as used
-            state.usedNonces.add(state.nonce);
+                // Mark nonce as used
+                state.usedNonces.add(state.nonce);
 
-            // -------- NETWORK TRANSMISSION --------
-            document.getElementById('phase-transmission').style.display = 'flex';
-            await showNetworkTransmission(transmissionContainer);
+                return {
+                    outputLabel: 'HMAC-SHA256 (256 bits)',
+                    outputValue: state.hmacResult.macHex,
+                    outputClass: 'hash',
+                    logData: {
+                        algorithm: 'HMAC-SHA256',
+                        mac: state.hmacResult.macHex
+                    }
+                };
+            }
+        });
 
-            // -------- GATEWAY VERIFICATION & DECRYPTION --------
-            document.getElementById('phase-gateway').style.display = 'flex';
+        // STEP 7: Network Transmission (special)
+        presentation.steps.push({
+            number: 7,
+            icon: '📡',
+            title: 'Secure Network Transmission',
+            phase: '📡 Data In Transit',
+            description: 'The encrypted transaction bundle is transmitted over TLS-protected channels. The data passes through the Payment Gateway, Card Network (Visa/Mastercard), and finally reaches the Issuing Bank.',
+            explanation: '<strong>Why TLS?</strong> TLS (Transport Layer Security) creates an encrypted tunnel between each hop. Combined with our application-layer encryption (AES + RSA), this provides defense-in-depth — even if TLS is compromised, the data inside is still encrypted.',
+            isTransmission: true,
+            container: transmissionContainer,
+            execute: async () => {
+                addLog('📡 Transmitting encrypted bundle over secure channel...', 'network');
+                addLog('📦 Transaction bundle assembled', 'info', state.transactionBundle);
+                addLog('✅ Encrypted bundle delivered to all entities', 'network');
 
-            // STEP 7: Verify HMAC
-            await runPipelineStep(gatewayContainer, {
-                number: 7,
-                icon: '🏷️',
-                title: 'HMAC Verification',
-                description: 'Gateway recomputes the HMAC over the received bundle using the shared secret key and compares it with the received HMAC.',
-                explanation: '<strong>First check:</strong> If the HMAC doesn\'t match, the message was either tampered with or came from an unauthorized sender. The transaction is immediately rejected.',
-                inputLabel: 'Received HMAC',
-                inputValue: state.hmacResult.macHex,
-                inputClass: 'hash',
-                execute: async () => {
-                    const receivedBundle = JSON.stringify({
-                        ciphertext: state.transactionBundle.ciphertext,
-                        wrappedKey: state.transactionBundle.wrappedKey,
-                        signature: state.transactionBundle.signature,
-                        hash: state.transactionBundle.hash,
-                        nonce: state.transactionBundle.nonce,
-                        timestamp: state.transactionBundle.timestamp
-                    });
-                    const isValid = await CryptoSim.HMAC.verify(
-                        state.hmacKeyData.key, receivedBundle, state.hmacResult.macBuffer
-                    );
-                    return {
-                        outputLabel: 'Verification Result',
-                        outputValue: isValid ? '✅ HMAC VALID — Message is authentic & untampered' : '❌ HMAC INVALID — Message rejected',
-                        outputClass: isValid ? 'plaintext' : 'encrypted',
-                        logData: { hmacValid: isValid }
-                    };
-                }
-            });
+                document.getElementById('phase-transmission').style.display = 'flex';
 
-            // STEP 8: Verify Digital Signature
-            await runPipelineStep(gatewayContainer, {
-                number: 8,
-                icon: '✍️',
-                title: 'Signature Verification',
-                description: 'Gateway verifies the merchant\'s digital signature using the merchant\'s registered public key.',
-                explanation: '<strong>Second check:</strong> This confirms the transaction was signed by the legitimate merchant\'s private key. It also provides non-repudiation — the merchant cannot deny sending it.',
-                inputLabel: 'Merchant\'s Public Key + Signature + Hash',
-                inputValue: `Signature: ${state.digitalSignature.signatureHex.slice(0, 40)}...\nHash: ${state.transactionHash.slice(0, 40)}...`,
-                inputClass: 'signature',
-                execute: async () => {
-                    const isValid = await CryptoSim.RSA.verify(
-                        state.signingKeyPair.publicKey,
-                        state.digitalSignature.signatureBuffer,
-                        state.transactionHash
-                    );
-                    return {
-                        outputLabel: 'Verification Result',
-                        outputValue: isValid ? '✅ SIGNATURE VALID — Merchant identity confirmed' : '❌ SIGNATURE INVALID — Merchant authentication failed',
-                        outputClass: isValid ? 'plaintext' : 'encrypted',
-                        logData: { signatureValid: isValid }
-                    };
-                }
-            });
+                return {
+                    outputLabel: 'Transmission Status',
+                    outputValue: '✅ Bundle delivered securely to all entities',
+                    outputClass: 'plaintext',
+                    logData: { status: 'transmitted' }
+                };
+            }
+        });
 
-            // STEP 9: RSA Key Unwrapping
-            await runPipelineStep(gatewayContainer, {
-                number: 9,
-                icon: '🔑',
-                title: 'RSA Key Unwrapping',
-                description: 'Gateway decrypts the wrapped AES session key using its RSA private key, recovering the original AES-256 key.',
-                explanation: '<strong>Key recovery:</strong> The AES key was encrypted with the gateway\'s RSA public key, so only the gateway\'s private key can recover it. This is the core of the hybrid encryption scheme.',
-                inputLabel: 'RSA-Wrapped AES Key',
-                inputValue: state.rsaWrappedKey.wrappedHex.slice(0, 80) + '...',
-                inputClass: 'encrypted',
-                execute: async () => {
-                    state.recoveredAesKey = await CryptoSim.RSA.unwrapKey(
-                        state.rsaWrappedKey.wrappedBuffer,
-                        state.encryptionKeyPair.privateKey
-                    );
-                    const recoveredHex = await CryptoSim.AES.exportKey(state.recoveredAesKey);
-                    return {
-                        outputLabel: 'Recovered AES-256 Key',
-                        outputValue: recoveredHex,
-                        outputClass: 'plaintext',
-                        logData: {
-                            recoveredKey: recoveredHex,
-                            matchesOriginal: recoveredHex === state.aesKeyData.keyHex
-                        }
-                    };
-                }
-            });
+        // STEP 8: HMAC Verification
+        presentation.steps.push({
+            number: 8,
+            icon: '🏷️',
+            title: 'HMAC Verification',
+            phase: '🏦 Gateway / Bank Side',
+            description: 'Gateway recomputes the HMAC over the received bundle using the shared secret key and compares it with the received HMAC.',
+            explanation: '<strong>First check:</strong> If the HMAC doesn\'t match, the message was either tampered with or came from an unauthorized sender. The transaction is immediately rejected.',
+            inputLabel: 'Received HMAC',
+            inputValueFn: () => state.hmacResult.macHex,
+            inputClass: 'hash',
+            container: gatewayContainer,
+            execute: async () => {
+                document.getElementById('phase-gateway').style.display = 'flex';
+                const receivedBundle = JSON.stringify({
+                    ciphertext: state.transactionBundle.ciphertext,
+                    wrappedKey: state.transactionBundle.wrappedKey,
+                    signature: state.transactionBundle.signature,
+                    hash: state.transactionBundle.hash,
+                    nonce: state.transactionBundle.nonce,
+                    timestamp: state.transactionBundle.timestamp
+                });
+                const isValid = await CryptoSim.HMAC.verify(
+                    state.hmacKeyData.key, receivedBundle, state.hmacResult.macBuffer
+                );
+                return {
+                    outputLabel: 'Verification Result',
+                    outputValue: isValid ? '✅ HMAC VALID — Message is authentic & untampered' : '❌ HMAC INVALID — Message rejected',
+                    outputClass: isValid ? 'plaintext' : 'encrypted',
+                    logData: { hmacValid: isValid }
+                };
+            }
+        });
 
-            // STEP 10: AES Decryption
-            await runPipelineStep(gatewayContainer, {
-                number: 10,
-                icon: '🔓',
-                title: 'AES-256-CBC Decryption',
-                description: 'Using the recovered AES key and the IV, decrypt the transaction payload to reveal the original data.',
-                explanation: '<strong>Final decryption:</strong> The gateway can now read the transaction details — card token, amount, merchant, timestamp — and forward it to the issuing bank for authorization.',
-                inputLabel: 'Ciphertext + IV',
-                inputValue: `Ciphertext: ${state.aesEncrypted.cipherHex.slice(0, 60)}...\nIV: ${state.aesEncrypted.ivHex}`,
-                inputClass: 'encrypted',
-                execute: async () => {
-                    state.decryptedPayload = await CryptoSim.AES.decrypt(
-                        state.recoveredAesKey || state.aesKeyData.key,
-                        state.aesEncrypted.cipherBuffer,
-                        state.aesEncrypted.iv
-                    );
-                    return {
-                        outputLabel: 'Decrypted Transaction Payload',
-                        outputValue: state.decryptedPayload,
-                        outputClass: 'plaintext',
-                        logData: {
-                            decrypted: JSON.parse(state.decryptedPayload)
-                        }
-                    };
-                }
-            });
+        // STEP 9: Signature Verification
+        presentation.steps.push({
+            number: 9,
+            icon: '✍️',
+            title: 'Signature Verification',
+            phase: '🏦 Gateway / Bank Side',
+            description: 'Gateway verifies the merchant\'s digital signature using the merchant\'s registered public key.',
+            explanation: '<strong>Second check:</strong> This confirms the transaction was signed by the legitimate merchant\'s private key. It also provides non-repudiation — the merchant cannot deny sending it.',
+            inputLabel: 'Merchant\'s Public Key + Signature + Hash',
+            inputValueFn: () => `Signature: ${state.digitalSignature.signatureHex.slice(0, 40)}...\nHash: ${state.transactionHash.slice(0, 40)}...`,
+            inputClass: 'signature',
+            container: gatewayContainer,
+            execute: async () => {
+                const isValid = await CryptoSim.RSA.verify(
+                    state.signingKeyPair.publicKey,
+                    state.digitalSignature.signatureBuffer,
+                    state.transactionHash
+                );
+                return {
+                    outputLabel: 'Verification Result',
+                    outputValue: isValid ? '✅ SIGNATURE VALID — Merchant identity confirmed' : '❌ SIGNATURE INVALID — Merchant authentication failed',
+                    outputClass: isValid ? 'plaintext' : 'encrypted',
+                    logData: { signatureValid: isValid }
+                };
+            }
+        });
 
-            // STEP 11: Hash Verification
-            await runPipelineStep(gatewayContainer, {
-                number: 11,
-                icon: '#️⃣',
-                title: 'Hash Integrity Check',
-                description: 'Recompute SHA-256 hash of the decrypted payload and compare with the hash received in the bundle.',
-                explanation: '<strong>Final integrity check:</strong> If the recomputed hash matches the one in the bundle, the data has not been altered during any stage of processing.',
-                inputLabel: 'Received Hash',
-                inputValue: state.transactionHash,
-                inputClass: 'hash',
-                execute: async () => {
-                    const recomputedHash = await CryptoSim.Hash.sha256(state.decryptedPayload);
-                    const matches = recomputedHash === state.transactionHash;
-                    return {
-                        outputLabel: 'Recomputed Hash ' + (matches ? '✅ MATCH' : '❌ MISMATCH'),
-                        outputValue: `Received:    ${state.transactionHash}\nRecomputed: ${recomputedHash}\nMatch: ${matches ? 'YES ✅' : 'NO ❌'}`,
-                        outputClass: matches ? 'plaintext' : 'encrypted',
-                        logData: { recomputedHash, matches }
-                    };
-                }
-            });
+        // STEP 10: RSA Key Unwrapping
+        presentation.steps.push({
+            number: 10,
+            icon: '🔑',
+            title: 'RSA Key Unwrapping',
+            phase: '🏦 Gateway / Bank Side',
+            description: 'Gateway decrypts the wrapped AES session key using its RSA private key, recovering the original AES-256 key.',
+            explanation: '<strong>Key recovery:</strong> The AES key was encrypted with the gateway\'s RSA public key, so only the gateway\'s private key can recover it. This is the core of the hybrid encryption scheme.',
+            inputLabel: 'RSA-Wrapped AES Key',
+            inputValueFn: () => state.rsaWrappedKey.wrappedHex.slice(0, 80) + '...',
+            inputClass: 'encrypted',
+            container: gatewayContainer,
+            execute: async () => {
+                state.recoveredAesKey = await CryptoSim.RSA.unwrapKey(
+                    state.rsaWrappedKey.wrappedBuffer,
+                    state.encryptionKeyPair.privateKey
+                );
+                const recoveredHex = await CryptoSim.AES.exportKey(state.recoveredAesKey);
+                return {
+                    outputLabel: 'Recovered AES-256 Key',
+                    outputValue: recoveredHex,
+                    outputClass: 'plaintext',
+                    logData: {
+                        recoveredKey: recoveredHex,
+                        matchesOriginal: recoveredHex === state.aesKeyData.keyHex
+                    }
+                };
+            }
+        });
 
-            // Show transaction result
-            state.transactionCount++;
-            updateDashboardStats();
-            showTransactionResult(resultContainer);
+        // STEP 11: AES Decryption
+        presentation.steps.push({
+            number: 11,
+            icon: '🔓',
+            title: 'AES-256-CBC Decryption',
+            phase: '🏦 Gateway / Bank Side',
+            description: 'Using the recovered AES key and the IV, decrypt the transaction payload to reveal the original data.',
+            explanation: '<strong>Final decryption:</strong> The gateway can now read the transaction details — card token, amount, merchant, timestamp — and forward it to the issuing bank for authorization.',
+            inputLabel: 'Ciphertext + IV',
+            inputValueFn: () => `Ciphertext: ${state.aesEncrypted.cipherHex.slice(0, 60)}...\nIV: ${state.aesEncrypted.ivHex}`,
+            inputClass: 'encrypted',
+            container: gatewayContainer,
+            execute: async () => {
+                state.decryptedPayload = await CryptoSim.AES.decrypt(
+                    state.recoveredAesKey || state.aesKeyData.key,
+                    state.aesEncrypted.cipherBuffer,
+                    state.aesEncrypted.iv
+                );
+                return {
+                    outputLabel: 'Decrypted Transaction Payload',
+                    outputValue: state.decryptedPayload,
+                    outputClass: 'plaintext',
+                    logData: {
+                        decrypted: JSON.parse(state.decryptedPayload)
+                    }
+                };
+            }
+        });
 
-            // Update verification page
-            updateVerificationPage();
+        // STEP 12: Hash Verification
+        presentation.steps.push({
+            number: 12,
+            icon: '#️⃣',
+            title: 'Hash Integrity Check',
+            phase: '🏦 Gateway / Bank Side',
+            description: 'Recompute SHA-256 hash of the decrypted payload and compare with the hash received in the bundle.',
+            explanation: '<strong>Final integrity check:</strong> If the recomputed hash matches the one in the bundle, the data has not been altered during any stage of processing.',
+            inputLabel: 'Received Hash',
+            inputValueFn: () => state.transactionHash,
+            inputClass: 'hash',
+            container: gatewayContainer,
+            execute: async () => {
+                const recomputedHash = await CryptoSim.Hash.sha256(state.decryptedPayload);
+                const matches = recomputedHash === state.transactionHash;
+                return {
+                    outputLabel: 'Recomputed Hash ' + (matches ? '✅ MATCH' : '❌ MISMATCH'),
+                    outputValue: `Received:    ${state.transactionHash}\nRecomputed: ${recomputedHash}\nMatch: ${matches ? 'YES ✅' : 'NO ❌'}`,
+                    outputClass: matches ? 'plaintext' : 'encrypted',
+                    logData: { recomputedHash, matches }
+                };
+            }
+        });
 
-            // Update network page
-            updateNetworkPage();
+        // STEP 13: Transaction Result (special)
+        presentation.steps.push({
+            number: 13,
+            icon: '💚',
+            title: 'Transaction Approved',
+            phase: '✅ Result',
+            description: 'All cryptographic verifications passed. Payment authorized by the issuing bank.',
+            isResult: true,
+            container: resultContainer,
+            execute: async () => {
+                state.transactionCount++;
+                updateDashboardStats();
+                showTransactionResult(resultContainer);
+                updateVerificationPage();
+                updateNetworkPage();
+                enableAttackButtons();
+                addLog('═══════════ TRANSACTION COMPLETE ═══════════', 'info');
 
-            // Enable attack buttons
-            enableAttackButtons();
+                return {
+                    outputLabel: 'Status',
+                    outputValue: '✅ Transaction Approved',
+                    outputClass: 'plaintext',
+                    logData: { status: 'approved' }
+                };
+            }
+        });
 
-            addLog('═══════════ TRANSACTION COMPLETE ═══════════', 'info');
+        presentation.totalSlides = presentation.steps.length;
 
-        } catch (err) {
-            showToast('Transaction failed: ' + err.message, 'error');
-            addLog('❌ Transaction error: ' + err.message, 'info');
-            console.error(err);
-        }
+        // Open presentation overlay
+        openPresentation();
     }
 
     // ============================================================
-    // PIPELINE STEP RENDERER
+    // PRESENTATION CONTROLLER
+    // ============================================================
+
+    function openPresentation() {
+        presentation.active = true;
+        presentation.currentSlide = 0;
+
+        const overlay = document.getElementById('presentation-overlay');
+        overlay.style.display = 'flex';
+
+        // Build step dots
+        buildStepDots();
+
+        // Show first slide (preview before execution)
+        renderCurrentSlide();
+
+        // Add keyboard navigation
+        document.addEventListener('keydown', handlePresentationKeydown);
+    }
+
+    function exitPresentation() {
+        presentation.active = false;
+        document.getElementById('presentation-overlay').style.display = 'none';
+        document.removeEventListener('keydown', handlePresentationKeydown);
+    }
+
+    function handlePresentationKeydown(e) {
+        if (!presentation.active) return;
+        if (e.key === 'ArrowRight' || e.key === ' ') {
+            e.preventDefault();
+            nextPresentationStep();
+        } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            prevPresentationStep();
+        } else if (e.key === 'Escape') {
+            exitPresentation();
+        }
+    }
+
+    function buildStepDots() {
+        const dotsContainer = document.getElementById('pres-step-dots');
+        let html = '';
+        let lastPhase = '';
+        presentation.steps.forEach((step, i) => {
+            if (step.phase !== lastPhase && i > 0) {
+                html += '<div class="pres-dot separator"></div>';
+            }
+            lastPhase = step.phase;
+            html += `<div class="pres-dot" id="pres-dot-${i}"></div>`;
+        });
+        dotsContainer.innerHTML = html;
+    }
+
+    function updatePresentationUI() {
+        const idx = presentation.currentSlide;
+        const total = presentation.totalSlides;
+        const step = presentation.steps[idx];
+
+        // Counter
+        document.getElementById('pres-step-counter').textContent = `Step ${idx + 1} of ${total}`;
+        document.getElementById('pres-phase-label').textContent = step.phase;
+
+        // Progress bar
+        const pct = ((idx + 1) / total) * 100;
+        document.getElementById('pres-progress-fill').style.width = pct + '%';
+
+        // Dots
+        presentation.steps.forEach((s, i) => {
+            const dot = document.getElementById(`pres-dot-${i}`);
+            if (!dot) return;
+            dot.className = 'pres-dot';
+            if (i === idx) dot.classList.add('active');
+            else if (presentation.executed.has(i)) dot.classList.add('complete');
+        });
+
+        // Navigation buttons
+        const prevBtn = document.getElementById('pres-prev-btn');
+        const nextBtn = document.getElementById('pres-next-btn');
+
+        prevBtn.disabled = idx === 0;
+
+        if (idx === total - 1 && presentation.executed.has(idx)) {
+            nextBtn.textContent = '✕ Close';
+        } else {
+            nextBtn.textContent = 'Next Step →';
+        }
+
+        nextBtn.disabled = false;
+    }
+
+    async function renderCurrentSlide() {
+        const idx = presentation.currentSlide;
+        const step = presentation.steps[idx];
+        const container = document.getElementById('pres-slide-container');
+        const executed = presentation.executed.has(idx);
+        const result = presentation.results[idx];
+
+        let slideHtml = '';
+
+        if (step.isResult && executed) {
+            // Transaction result slide
+            const authCode = 'AUTH_' + Math.random().toString(36).substr(2, 6).toUpperCase();
+            slideHtml = `
+                <div class="presentation-slide">
+                    <div class="slide-result">
+                        <div class="slide-result-icon">💚</div>
+                        <h2 class="slide-result-title">Transaction Approved</h2>
+                        <p class="slide-result-subtitle">All cryptographic verifications passed. Payment authorized by issuing bank.</p>
+                        <dl class="slide-result-details">
+                            <dt>Amount</dt><dd>₹${state.amount.toLocaleString()}</dd>
+                            <dt>Merchant</dt><dd>${escapeHtml(state.merchantName)}</dd>
+                            <dt>Card</dt><dd>${state.tokenResult.masked}</dd>
+                            <dt>Network</dt><dd>${state.cardNetwork.toUpperCase()}</dd>
+                            <dt>Auth Code</dt><dd>${authCode}</dd>
+                            <dt>Nonce</dt><dd>${state.nonce}</dd>
+                        </dl>
+                    </div>
+                    <div class="slide-analogy">
+                        <div class="slide-analogy-icon">${STEP_ANALOGIES[13].icon}</div>
+                        <div class="slide-analogy-content">
+                            <div class="slide-analogy-title">${STEP_ANALOGIES[13].title}</div>
+                            <div class="slide-analogy-text">${STEP_ANALOGIES[13].text}</div>
+                        </div>
+                    </div>
+                    <div style="text-align:center;margin-top:24px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                        <button class="btn btn-presentation-nav" onclick="App.exitPresentation(); App.navigate('attacks');">🛡️ Try Attack Simulator</button>
+                        <button class="btn btn-presentation-nav" onclick="App.exitPresentation(); App.navigate('verification');">✅ View Verification</button>
+                        <button class="btn btn-presentation-nav" onclick="App.exitPresentation(); App.navigate('audit-log');">📋 View Audit Log</button>
+                    </div>
+                </div>
+            `;
+        } else if (step.isTransmission) {
+            // Network transmission slide
+            const analogy = STEP_ANALOGIES[step.number];
+            slideHtml = `
+                <div class="presentation-slide">
+                    <div class="slide-step-number">Step ${step.number} — ${step.phase}</div>
+                    <h2 class="slide-title">
+                        <span class="slide-title-icon">${step.icon}</span>
+                        ${step.title}
+                    </h2>
+                    <p class="slide-description">${step.description}</p>
+                    <div class="slide-analogy">
+                        <div class="slide-analogy-icon">${analogy.icon}</div>
+                        <div class="slide-analogy-content">
+                            <div class="slide-analogy-title">${analogy.title}</div>
+                            <div class="slide-analogy-text">${analogy.text}</div>
+                        </div>
+                    </div>
+                    ${executed ? `
+                        <div class="slide-network-viz">
+                            <div class="slide-network-node complete"><div class="node-circle">🏪</div><span class="node-name">Merchant POS</span></div>
+                            <div class="slide-network-node complete"><div class="node-circle">🌐</div><span class="node-name">Payment Gateway</span></div>
+                            <div class="slide-network-node complete"><div class="node-circle">🔗</div><span class="node-name">Card Network</span></div>
+                            <div class="slide-network-node complete"><div class="node-circle">🏦</div><span class="node-name">Issuing Bank</span></div>
+                        </div>
+                        <div class="slide-bundle-fields">
+                            <div class="slide-bundle-field">
+                                <div class="slide-bundle-field-name">Ciphertext (AES-256-CBC)</div>
+                                <div class="slide-bundle-field-value">${state.aesEncrypted.cipherBase64.slice(0, 60)}...</div>
+                            </div>
+                            <div class="slide-bundle-field">
+                                <div class="slide-bundle-field-name">Wrapped Key (RSA-OAEP)</div>
+                                <div class="slide-bundle-field-value">${state.rsaWrappedKey.wrappedBase64.slice(0, 60)}...</div>
+                            </div>
+                            <div class="slide-bundle-field">
+                                <div class="slide-bundle-field-name">Digital Signature (RSA-PSS)</div>
+                                <div class="slide-bundle-field-value">${state.digitalSignature.signatureBase64.slice(0, 60)}...</div>
+                            </div>
+                            <div class="slide-bundle-field">
+                                <div class="slide-bundle-field-name">SHA-256 Hash</div>
+                                <div class="slide-bundle-field-value">${state.transactionHash}</div>
+                            </div>
+                            <div class="slide-bundle-field">
+                                <div class="slide-bundle-field-name">HMAC-SHA256</div>
+                                <div class="slide-bundle-field-value">${state.hmacResult.macHex}</div>
+                            </div>
+                            <div class="slide-bundle-field">
+                                <div class="slide-bundle-field-name">Nonce</div>
+                                <div class="slide-bundle-field-value">${state.nonce}</div>
+                            </div>
+                        </div>
+                        <div class="slide-time-badge">⚡ Transmitted securely</div>
+                    ` : `
+                        <div class="slide-network-viz">
+                            <div class="slide-network-node active"><div class="node-circle">🏪</div><span class="node-name">Merchant POS</span></div>
+                            <div class="slide-network-node"><div class="node-circle">🌐</div><span class="node-name">Payment Gateway</span></div>
+                            <div class="slide-network-node"><div class="node-circle">🔗</div><span class="node-name">Card Network</span></div>
+                            <div class="slide-network-node"><div class="node-circle">🏦</div><span class="node-name">Issuing Bank</span></div>
+                        </div>
+                        <p style="color:var(--text-muted);font-size:0.88rem;text-align:center;margin-top:16px;">Press <strong>⚡ Execute Step</strong> to transmit the encrypted bundle across the network</p>
+                    `}
+                    <div class="slide-explanation" style="margin-top:20px;">${step.explanation}</div>
+                </div>
+            `;
+        } else if (step.isResult && !executed) {
+            // Pre-execution result slide
+            const analogy = STEP_ANALOGIES[step.number];
+            slideHtml = `
+                <div class="presentation-slide">
+                    <div class="slide-step-number">Step ${step.number} — ${step.phase}</div>
+                    <h2 class="slide-title">
+                        <span class="slide-title-icon">${step.icon}</span>
+                        ${step.title}
+                    </h2>
+                    <p class="slide-description">${step.description}</p>
+                    <div class="slide-analogy">
+                        <div class="slide-analogy-icon">${analogy.icon}</div>
+                        <div class="slide-analogy-content">
+                            <div class="slide-analogy-title">${analogy.title}</div>
+                            <div class="slide-analogy-text">${analogy.text}</div>
+                        </div>
+                    </div>
+                    <p style="color:var(--text-muted);font-size:0.95rem;text-align:center;margin-top:32px;">Press <strong>Next Step →</strong> to finalize the transaction</p>
+                </div>
+            `;
+        } else {
+            // Regular crypto step
+            const analogy = STEP_ANALOGIES[step.number];
+            const inputVal = step.inputValueFn ? step.inputValueFn() : step.inputValue;
+
+            slideHtml = `
+                <div class="presentation-slide">
+                    <div class="slide-step-number">Step ${step.number} — ${step.phase}</div>
+                    <h2 class="slide-title">
+                        <span class="slide-title-icon">${step.icon}</span>
+                        ${step.title}
+                    </h2>
+                    <p class="slide-description">${step.description}</p>
+                    <div class="slide-analogy">
+                        <div class="slide-analogy-icon">${analogy.icon}</div>
+                        <div class="slide-analogy-content">
+                            <div class="slide-analogy-title">${analogy.title}</div>
+                            <div class="slide-analogy-text">${analogy.text}</div>
+                        </div>
+                    </div>
+                    <div class="slide-data-area">
+                        <div class="slide-data-block input">
+                            <div class="slide-data-label"><span class="label-dot input-dot"></span> ${step.inputLabel}</div>
+                            <div class="slide-data-value ${step.inputClass || ''}">${escapeHtml(inputVal)}</div>
+                        </div>
+                        <div class="slide-data-arrow"><div class="arrow-inner">→</div></div>
+                        <div class="slide-data-block output ${executed ? 'complete' : ''}" id="pres-output-block">
+                            ${executed && result ? `
+                                <div class="slide-data-label"><span class="label-dot output-dot"></span> ${result.outputLabel}</div>
+                                <div class="slide-data-value ${result.outputClass || ''}">${escapeHtml(result.outputValue)}</div>
+                            ` : `
+                                <div class="slide-data-label"><span class="label-dot output-dot"></span> Output</div>
+                                <div class="slide-data-value" style="color:var(--text-muted);">⏳ Processing...</div>
+                            `}
+                        </div>
+                    </div>
+                    ${executed && result && result.elapsed ? `
+                        <div class="slide-time-badge">⚡ Executed in ${result.elapsed}ms</div>
+                    ` : ''}
+                    <div class="slide-explanation">${step.explanation}</div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = slideHtml;
+
+        // Add keyboard hint
+        if (!document.querySelector('.keyboard-hint')) {
+            const hint = document.createElement('div');
+            hint.className = 'keyboard-hint';
+            hint.innerHTML = '<kbd>←</kbd> <kbd>→</kbd> Navigate &nbsp;|&nbsp; <kbd>Esc</kbd> Exit';
+            document.getElementById('presentation-overlay').appendChild(hint);
+        }
+
+        updatePresentationUI();
+
+        // Auto-execute the step if it hasn't been executed yet
+        if (!presentation.executed.has(idx) && !step.isResult) {
+            await executeCurrentStep();
+        } else if (!presentation.executed.has(idx) && step.isResult) {
+            // For result step, auto-execute too
+            await executeCurrentStep();
+        }
+    }
+
+    async function nextPresentationStep() {
+        const idx = presentation.currentSlide;
+        const total = presentation.totalSlides;
+
+        // If we're at the last slide and it's been executed, close
+        if (idx >= total - 1 && presentation.executed.has(idx)) {
+            exitPresentation();
+            return;
+        }
+
+        // Move to next slide (auto-execute happens in renderCurrentSlide)
+        if (idx < total - 1) {
+            presentation.currentSlide++;
+            renderCurrentSlide();
+        }
+    }
+
+    function prevPresentationStep() {
+        if (presentation.currentSlide > 0) {
+            presentation.currentSlide--;
+            renderCurrentSlide();
+        }
+    }
+
+    async function executeCurrentStep() {
+        const idx = presentation.currentSlide;
+        const step = presentation.steps[idx];
+        const nextBtn = document.getElementById('pres-next-btn');
+
+        // Disable buttons during execution
+        nextBtn.disabled = true;
+        nextBtn.textContent = '⏳ Processing...';
+
+        try {
+            const startTime = performance.now();
+            addLog(`⏳ Step ${step.number}: ${step.title} — executing...`, 'crypto');
+
+            const result = await step.execute();
+            const elapsed = (performance.now() - startTime).toFixed(1);
+
+            result.elapsed = elapsed;
+            presentation.results[idx] = result;
+            presentation.executed.add(idx);
+
+            addLog(`✅ Step ${step.number}: ${step.title} — completed in ${elapsed}ms`, 'crypto', result.logData);
+
+            // Also render in the background pipeline view
+            if (!step.isTransmission && !step.isResult && step.container) {
+                renderBackgroundPipelineStep(step, result, elapsed);
+            }
+
+            // Update the output block in-place (no re-render to avoid recursion)
+            const outputBlock = document.getElementById('pres-output-block');
+            if (outputBlock) {
+                outputBlock.classList.add('complete');
+                outputBlock.innerHTML = `
+                    <div class="slide-data-label"><span class="label-dot output-dot"></span> ${result.outputLabel}</div>
+                    <div class="slide-data-value ${result.outputClass || ''}">${escapeHtml(result.outputValue)}</div>
+                `;
+            }
+
+            // Add time badge if not already there
+            const slide = document.querySelector('.presentation-slide');
+            if (slide && result.elapsed) {
+                const existingBadge = slide.querySelector('.slide-time-badge');
+                if (!existingBadge) {
+                    const badge = document.createElement('div');
+                    badge.className = 'slide-time-badge';
+                    badge.textContent = `⚡ Executed in ${result.elapsed}ms`;
+                    slide.appendChild(badge);
+                }
+            }
+
+            // For transmission/result slides, re-render fully to show complete state
+            if (step.isTransmission || step.isResult) {
+                // Mark as executed first to prevent re-execution
+                const container = document.getElementById('pres-slide-container');
+                // Re-build slide HTML with executed state
+                rebuildSlideContent(idx);
+            }
+
+            // Update nav buttons
+            updatePresentationUI();
+
+        } catch (err) {
+            showToast('Step failed: ' + err.message, 'error');
+            addLog(`❌ Step ${step.number}: ${step.title} — failed: ${err.message}`, 'info');
+            console.error(err);
+
+            nextBtn.disabled = false;
+            nextBtn.textContent = '🔄 Retry →';
+        }
+    }
+
+    // Rebuild slide content without triggering auto-execute (for transmission/result slides)
+    function rebuildSlideContent(idx) {
+        const step = presentation.steps[idx];
+        const container = document.getElementById('pres-slide-container');
+        const result = presentation.results[idx];
+        const analogy = STEP_ANALOGIES[step.number];
+
+        let slideHtml = '';
+
+        if (step.isResult) {
+            const authCode = 'AUTH_' + Math.random().toString(36).substr(2, 6).toUpperCase();
+            slideHtml = `
+                <div class="presentation-slide">
+                    <div class="slide-result">
+                        <div class="slide-result-icon">💚</div>
+                        <h2 class="slide-result-title">Transaction Approved</h2>
+                        <p class="slide-result-subtitle">All cryptographic verifications passed. Payment authorized by issuing bank.</p>
+                        <dl class="slide-result-details">
+                            <dt>Amount</dt><dd>₹${state.amount.toLocaleString()}</dd>
+                            <dt>Merchant</dt><dd>${escapeHtml(state.merchantName)}</dd>
+                            <dt>Card</dt><dd>${state.tokenResult.masked}</dd>
+                            <dt>Network</dt><dd>${state.cardNetwork.toUpperCase()}</dd>
+                            <dt>Auth Code</dt><dd>${authCode}</dd>
+                            <dt>Nonce</dt><dd>${state.nonce}</dd>
+                        </dl>
+                    </div>
+                    <div class="slide-analogy">
+                        <div class="slide-analogy-icon">${STEP_ANALOGIES[13].icon}</div>
+                        <div class="slide-analogy-content">
+                            <div class="slide-analogy-title">${STEP_ANALOGIES[13].title}</div>
+                            <div class="slide-analogy-text">${STEP_ANALOGIES[13].text}</div>
+                        </div>
+                    </div>
+                    <div style="text-align:center;margin-top:24px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                        <button class="btn btn-presentation-nav" onclick="App.exitPresentation(); App.navigate('attacks');">🛡️ Try Attack Simulator</button>
+                        <button class="btn btn-presentation-nav" onclick="App.exitPresentation(); App.navigate('verification');">✅ View Verification</button>
+                        <button class="btn btn-presentation-nav" onclick="App.exitPresentation(); App.navigate('audit-log');">📋 View Audit Log</button>
+                    </div>
+                </div>
+            `;
+        } else if (step.isTransmission) {
+            slideHtml = `
+                <div class="presentation-slide">
+                    <div class="slide-step-number">Step ${step.number} — ${step.phase}</div>
+                    <h2 class="slide-title">
+                        <span class="slide-title-icon">${step.icon}</span>
+                        ${step.title}
+                    </h2>
+                    <p class="slide-description">${step.description}</p>
+                    <div class="slide-analogy">
+                        <div class="slide-analogy-icon">${analogy.icon}</div>
+                        <div class="slide-analogy-content">
+                            <div class="slide-analogy-title">${analogy.title}</div>
+                            <div class="slide-analogy-text">${analogy.text}</div>
+                        </div>
+                    </div>
+                    <div class="slide-network-viz">
+                        <div class="slide-network-node complete"><div class="node-circle">🏪</div><span class="node-name">Merchant POS</span></div>
+                        <div class="slide-network-node complete"><div class="node-circle">🌐</div><span class="node-name">Payment Gateway</span></div>
+                        <div class="slide-network-node complete"><div class="node-circle">🔗</div><span class="node-name">Card Network</span></div>
+                        <div class="slide-network-node complete"><div class="node-circle">🏦</div><span class="node-name">Issuing Bank</span></div>
+                    </div>
+                    <div class="slide-bundle-fields">
+                        <div class="slide-bundle-field">
+                            <div class="slide-bundle-field-name">Ciphertext (AES-256-CBC)</div>
+                            <div class="slide-bundle-field-value">${state.aesEncrypted.cipherBase64.slice(0, 60)}...</div>
+                        </div>
+                        <div class="slide-bundle-field">
+                            <div class="slide-bundle-field-name">Wrapped Key (RSA-OAEP)</div>
+                            <div class="slide-bundle-field-value">${state.rsaWrappedKey.wrappedBase64.slice(0, 60)}...</div>
+                        </div>
+                        <div class="slide-bundle-field">
+                            <div class="slide-bundle-field-name">Digital Signature (RSA-PSS)</div>
+                            <div class="slide-bundle-field-value">${state.digitalSignature.signatureBase64.slice(0, 60)}...</div>
+                        </div>
+                        <div class="slide-bundle-field">
+                            <div class="slide-bundle-field-name">SHA-256 Hash</div>
+                            <div class="slide-bundle-field-value">${state.transactionHash}</div>
+                        </div>
+                        <div class="slide-bundle-field">
+                            <div class="slide-bundle-field-name">HMAC-SHA256</div>
+                            <div class="slide-bundle-field-value">${state.hmacResult.macHex}</div>
+                        </div>
+                        <div class="slide-bundle-field">
+                            <div class="slide-bundle-field-name">Nonce</div>
+                            <div class="slide-bundle-field-value">${state.nonce}</div>
+                        </div>
+                    </div>
+                    <div class="slide-time-badge">⚡ Transmitted securely</div>
+                    <div class="slide-explanation" style="margin-top:20px;">${step.explanation}</div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = slideHtml;
+    }
+
+    // Renders a step card in the background pipeline view (for consistency)
+    function renderBackgroundPipelineStep(step, result, elapsed) {
+        const stepId = `step-${step.number}`;
+        const inputVal = step.inputValueFn ? step.inputValueFn() : step.inputValue;
+
+        const stepEl = document.createElement('div');
+        stepEl.className = 'pipeline-step visible complete';
+        stepEl.id = stepId;
+        stepEl.innerHTML = `
+            <div class="step-marker">${step.number}</div>
+            <div class="step-card">
+                <div class="step-header">
+                    <span class="step-icon">${step.icon}</span>
+                    <h3 class="step-title">${step.title}</h3>
+                    <span class="step-time">${elapsed}ms</span>
+                    <span class="step-badge complete">Complete</span>
+                </div>
+                <p class="step-description">${step.description}</p>
+                <div class="step-data">
+                    <div class="data-block">
+                        <div class="data-label">${step.inputLabel}</div>
+                        <div class="data-value ${step.inputClass || ''}">${escapeHtml(inputVal)}</div>
+                    </div>
+                    <div class="data-arrow">→</div>
+                    <div class="data-block">
+                        <div class="data-label">${result.outputLabel}</div>
+                        <div class="data-value ${result.outputClass || ''}">${escapeHtml(result.outputValue)}</div>
+                    </div>
+                </div>
+                <div class="step-explanation">${step.explanation}</div>
+            </div>
+        `;
+
+        step.container.appendChild(stepEl);
+    }
+
+    // ============================================================
+    // PIPELINE STEP RENDERER (kept for compatibility with original view)
     // ============================================================
 
     async function runPipelineStep(container, config) {
@@ -924,7 +1579,8 @@
         const nodes = ['tx-gateway', 'tx-network', 'tx-bank'];
         for (const nodeId of nodes) {
             await delay(600);
-            document.getElementById(nodeId).classList.add('active');
+            const el = document.getElementById(nodeId);
+            if (el) el.classList.add('active');
         }
 
         await delay(400);
@@ -1503,10 +2159,15 @@
         startTransaction,
         simulateAttack,
         clearLog,
-        exportLog
+        exportLog,
+        // Presentation mode
+        nextPresentationStep,
+        prevPresentationStep,
+        exitPresentation
     };
 
     // Initialize when DOM is ready
     document.addEventListener('DOMContentLoaded', init);
 
 })();
+

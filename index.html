@@ -548,6 +548,34 @@
     </main>
 </div>
 
+<!-- ==================== PRESENTATION OVERLAY ==================== -->
+<div id="presentation-overlay" class="presentation-overlay" style="display:none;">
+    <div class="presentation-header">
+        <div class="presentation-progress-info">
+            <span class="presentation-step-counter" id="pres-step-counter">Step 1 of 11</span>
+            <span class="presentation-phase-label" id="pres-phase-label">🏪 Merchant Side</span>
+        </div>
+        <div class="presentation-progress-bar">
+            <div class="presentation-progress-fill" id="pres-progress-fill" style="width:0%"></div>
+        </div>
+        <button class="btn-presentation-close" id="pres-close-btn" onclick="App.exitPresentation()" title="Exit Presentation">✕</button>
+    </div>
+
+    <div class="presentation-slide-container" id="pres-slide-container">
+        <!-- Dynamic slide content inserted here -->
+    </div>
+
+    <div class="presentation-footer">
+        <button class="btn btn-presentation-nav btn-prev" id="pres-prev-btn" onclick="App.prevPresentationStep()" disabled>
+            ← Previous
+        </button>
+        <div class="presentation-step-dots" id="pres-step-dots"></div>
+        <button class="btn btn-presentation-nav btn-next" id="pres-next-btn" onclick="App.nextPresentationStep()">
+            Next Step →
+        </button>
+    </div>
+</div>
+
 <!-- Toast Container -->
 <div id="toast-container"></div>
 

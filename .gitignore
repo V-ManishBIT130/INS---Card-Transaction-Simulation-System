@@ -1,0 +1,6 @@
+# Research papers
+*.pdf
+
+# OS files
+.DS_Store
+Thumbs.db
